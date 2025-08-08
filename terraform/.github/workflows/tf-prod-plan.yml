@@ -1,0 +1,27 @@
+name: tf-prod-plan
+on:
+  pull_request:
+    paths: [ 'terraform/environments/prod/**' ]
+  push:
+    branches: [ main ]
+    paths: [ 'terraform/environments/prod/**' ]
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: terraform/environments/prod } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Configure AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN_PROD }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend-config=backend.hcl
+      - run: terraform validate
+      - run: terraform plan -var-file=prod.tfvars -no-color -input=false -lock=false

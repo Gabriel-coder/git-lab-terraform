@@ -1,0 +1,31 @@
+name: tf-prod-apply
+on:
+  workflow_dispatch:
+    inputs:
+      auto_approve:
+        description: 'Aplicar sem aprovação Terraform (true/false)'
+        required: true
+        default: 'false'
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: prod
+    defaults: { run: { working-directory: terraform/environments/prod } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN_PROD }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      - run: terraform init -backend-config=backend.hcl
+      - run: terraform plan -var-file=prod.tfvars -out=plan.out -input=false
+      - run: |
+          if [ "${{ github.event.inputs.auto_approve }}" = "true" ]; then
+            terraform apply -auto-approve plan.out
+          else
+            terraform apply plan.out
+          fi
