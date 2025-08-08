@@ -1,5 +1,1 @@
-variable "region" {
-  description = "Região AWS"
-  type        = string
-  default     = "us-east-1"
-}
+variable "region" { description = "AWS region"; type = string; default = "us-east-1" }

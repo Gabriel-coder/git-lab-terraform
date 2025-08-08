@@ -1,0 +1,43 @@
+name: tf-dev-apply
+on:
+  workflow_dispatch:
+    inputs:
+      auto_approve:
+        description: 'Aplicar sem aprovação Terraform (true/false)'
+        required: true
+        default: 'false'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment: dev  # CRIE "dev" em Settings > Environments e exija aprovação
+    defaults:
+      run:
+        working-directory: infra/terraform/environments/dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Terraform init (backend)
+        run: terraform init -backend-config=backend.hcl
+
+      - name: Terraform plan (dev)
+        run: terraform plan -var-file="dev.tfvars" -out=plan.out -input=false
+
+      - name: Terraform apply (manual)
+        run: |
+          if [ "${{ github.event.inputs.auto_approve }}" = "true" ]; then
+            terraform apply -auto-approve plan.out
+          else
+            terraform apply plan.out
+          fi

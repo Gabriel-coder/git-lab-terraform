@@ -1,0 +1,42 @@
+name: tf-prod-plan
+on:
+  pull_request:
+    paths:
+      - 'infra/terraform/environments/prod/**'
+  push:
+    branches: [ main ]
+    paths:
+      - 'infra/terraform/environments/prod/**'
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform/environments/prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ secrets.AWS_OIDC_ROLE_ARN != '' }}
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend-config=backend.hcl
+      - run: terraform validate
+      - run: terraform plan -var-file="prod.tfvars" -no-color -input=false -lock=false
+      - name: Comment plan on PR
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            let out = execSync('terraform plan -var-file=prod.tfvars -no-color -input=false -lock=false', { cwd: 'infra/terraform/environments/prod' }).toString();
+            const body = '### Terraform Plan (prod)\n```\n' + out.slice(0, 60000) + '\n```';
+            github.rest.issues.createComment({ issue_number: context.issue.number, owner: context.repo.owner, repo: context.repo.repo, body });

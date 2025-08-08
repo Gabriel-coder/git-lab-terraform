@@ -1,6 +1,5 @@
-# Exemplo de backend remoto (desabilitado por padrão nos workflows)
-# bucket         = "SEU_BUCKET_TFSTATE"
-# key            = "infra/terraform/ENVIRONMENT/terraform.tfstate"
-# region         = "us-east-1"
-# dynamodb_table = "SEU_DYNAMODB_TF_LOCK"
-# encrypt        = true
+bucket         = "meu-tfstate-dev"         # TODO: troque
+key            = "infra/dev/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "meu-tflock-dev"          # TODO: troque
+encrypt        = true
