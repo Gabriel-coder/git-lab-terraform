@@ -1,2 +1,1 @@
-# Exemplo: módulos ficam em ../../modules/*
-# module "network" { source = "../../modules/network" }
+# Adicione seus módulos aqui. Mantido vazio para não criar nada no plan/apply.
