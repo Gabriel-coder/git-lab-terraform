@@ -3,14 +3,10 @@ name: Terraform Pipeline
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'terraform/**'
-      - '.github/workflows/terraform.yml'
+    paths: [ 'terraform/**', '.github/workflows/terraform.yml' ]
   pull_request:
     branches: [ main ]
-    paths:
-      - 'terraform/**'
-      - '.github/workflows/terraform.yml'
+    paths: [ 'terraform/**', '.github/workflows/terraform.yml' ]
   workflow_dispatch: {}
 
 jobs:
@@ -19,72 +15,72 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: terraform   # << roda dentro da pasta terraform
+        working-directory: terraform   # roda todos os comandos dentro de terraform/
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Configura credenciais AWS
-        uses: aws-actions/configure-aws-credentials@v2
+      - name: AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Instala Terraform
-        uses: hashicorp/setup-terraform@v2
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.5
 
-      - name: Terraform Init
+      - name: Init
         run: terraform init
 
-      - name: Terraform Validate
+      - name: Validate
         run: terraform validate
 
-      - name: Terraform Plan
-        run: terraform plan -out=plan.out
+      - name: Plan
+        run: terraform plan -out=plan.out   # gera plan.out dentro de terraform/
 
-      - name: Upload do plano
+      - name: Upload plan.out
         uses: actions/upload-artifact@v4
         with:
           name: plan
-          path: terraform/plan.out   # caminho relativo à raiz do repo
+          path: plan.out                    # caminho relativo a terraform/ (por causa do working-directory)
+          if-no-files-found: error
 
   apply:
-    name: Terraform Apply (aprovado)
+    name: Terraform Apply (manual / env protegido)
     runs-on: ubuntu-latest
     needs: plan
     environment:
-      name: production   # exige aprovação na aba Environments
+      name: production
     defaults:
       run:
         working-directory: terraform
     steps:
-      - name: Checkout código
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Configura credenciais AWS
-        uses: aws-actions/configure-aws-credentials@v2
+      - name: AWS creds
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Instala Terraform
-        uses: hashicorp/setup-terraform@v2
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.5
 
-      - name: Baixa o plano gerado
+      - name: Download plan.out
         uses: actions/download-artifact@v4
         with:
           name: plan
-          path: .          # baixa em ./terraform por causa do working-directory
+          path: .                           # baixa em terraform/ por causa do working-directory
 
-      - name: Terraform Init
+      - name: Init
         run: terraform init
 
-      - name: Terraform Apply
+      - name: Apply
         run: terraform apply -auto-approve plan.out
-
