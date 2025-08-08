@@ -5,12 +5,10 @@ on:
   push:
     branches: [ main ]
     paths: [ 'terraform/environments/prod/**' ]
-
 permissions:
   id-token: write
   contents: read
   pull-requests: write
-
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -20,17 +18,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
-
       - name: Configure AWS (OIDC)
-        env:
-          ROLE_ARN: ${{ secrets.AWS_OIDC_ROLE_ARN_PROD }}
+        env: { ROLE_ARN: ${{ secrets.AWS_OIDC_ROLE_ARN_PROD }} }
         if: ${{ env.ROLE_ARN != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ env.ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
-
       - run: terraform fmt -check -recursive
       - run: terraform init -backend-config=backend.hcl
       - run: terraform validate
-      - run: terraform plan -var-file=prod.tfvars -no-color -input=false -lock=false
+      - name: Terraform Plan
+        run: |
+          ARGS=""
+          [ -f prod.tfvars ] && ARGS="-var-file=prod.tfvars"
+          terraform plan $ARGS -no-color -input=false -lock=false
