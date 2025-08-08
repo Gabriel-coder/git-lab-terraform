@@ -1,0 +1,25 @@
+name: CD - Deploy App
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'app.js'
+      - 'Dockerfile'
+      - '.github/workflows/cd-app.yml'
+
+jobs:
+  deploy-app:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Build da imagem
+        run: docker build -t gabriel1304/node-app:latest .
+
+      - name: Login no Docker Hub
+        run: echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u ${{ secrets.DOCKER_HUB_USERNAME }} --password-stdin
+
+      - name: Push da imagem
+        run: docker push gabriel1304/node-app:latest

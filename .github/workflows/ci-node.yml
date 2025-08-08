@@ -1,0 +1,23 @@
+name: CI - Node.js
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'app.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/ci-node.yml'
+
+jobs:
+  test-node:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Instala dependências
+        run: npm install
+
+      - name: Testa app
+        run: node app.js

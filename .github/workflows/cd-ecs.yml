@@ -1,0 +1,24 @@
+name: CD - Deploy ECS
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - 'terraform/**'
+      - '.github/workflows/cd-ecs.yml'
+
+jobs:
+  deploy-ecs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Instala Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Inicializa Terraform
+        run: terraform -chdir=terraform init
+
+      - name: Aplica infraestrutura ECS
+        run: terraform -chdir=terraform apply -auto-approve
