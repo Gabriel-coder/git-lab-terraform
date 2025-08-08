@@ -1,12 +1,10 @@
 name: tf-prod-plan
 on:
   pull_request:
-    paths:
-      - 'infra/terraform/environments/prod/**'
+    paths: [ 'terraform/environments/prod/**' ]
   push:
     branches: [ main ]
-    paths:
-      - 'infra/terraform/environments/prod/**'
+    paths: [ 'terraform/environments/prod/**' ]
 
 permissions:
   id-token: write
@@ -18,25 +16,17 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: infra/terraform/environments/prod
+        working-directory: terraform/environments/prod
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
-      - uses: aws-actions/configure-aws-credentials@v4
-        if: ${{ secrets.AWS_OIDC_ROLE_ARN != '' }}
+      - name: Configure AWS (OIDC)
+        if: ${{ secrets.AWS_OIDC_ROLE_ARN_PROD != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN_PROD }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
       - run: terraform fmt -check -recursive
       - run: terraform init -backend-config=backend.hcl
       - run: terraform validate
-      - run: terraform plan -var-file="prod.tfvars" -no-color -input=false -lock=false
-      - name: Comment plan on PR
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { execSync } = require('child_process');
-            let out = execSync('terraform plan -var-file=prod.tfvars -no-color -input=false -lock=false', { cwd: 'infra/terraform/environments/prod' }).toString();
-            const body = '### Terraform Plan (prod)\n```\n' + out.slice(0, 60000) + '\n```';
-            github.rest.issues.createComment({ issue_number: context.issue.number, owner: context.repo.owner, repo: context.repo.repo, body });
+      - run: terraform plan -var-file=prod.tfvars -no-color -input=false -lock=false

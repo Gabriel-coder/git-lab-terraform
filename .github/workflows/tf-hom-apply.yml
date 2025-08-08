@@ -17,16 +17,16 @@ jobs:
     environment: hom
     defaults:
       run:
-        working-directory: infra/terraform/environments/hom
+        working-directory: terraform/environments/hom
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: us-east-1
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN_HOM }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
       - run: terraform init -backend-config=backend.hcl
-      - run: terraform plan -var-file="hom.tfvars" -out=plan.out -input=false
+      - run: terraform plan -var-file=hom.tfvars -out=plan.out -input=false
       - run: |
           if [ "${{ github.event.inputs.auto_approve }}" = "true" ]; then
             terraform apply -auto-approve plan.out

@@ -14,28 +14,20 @@ permissions:
 jobs:
   apply:
     runs-on: ubuntu-latest
-    environment: dev  # CRIE "dev" em Settings > Environments e exija aprovação
+    environment: dev
     defaults:
       run:
-        working-directory: infra/terraform/environments/dev
+        working-directory: terraform/environments/dev
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
-
-      - name: Configure AWS (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Terraform init (backend)
-        run: terraform init -backend-config=backend.hcl
-
-      - name: Terraform plan (dev)
-        run: terraform plan -var-file="dev.tfvars" -out=plan.out -input=false
-
-      - name: Terraform apply (manual)
-        run: |
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN_DEV }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      - run: terraform init -backend-config=backend.hcl
+      - run: terraform plan -var-file=dev.tfvars -out=plan.out -input=false
+      - run: |
           if [ "${{ github.event.inputs.auto_approve }}" = "true" ]; then
             terraform apply -auto-approve plan.out
           else
