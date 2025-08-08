@@ -1,0 +1,58 @@
+name: Terraform Apply (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Ambiente para aplicar (dev|hom|prod)'
+        required: true
+        default: 'dev'
+      backend:
+        description: 'Usar backend s3? (true/false)'
+        required: true
+        default: 'false'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    name: apply (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }} # use ambientes protegidos do GitHub p/ exigir aprovação
+    defaults:
+      run:
+        working-directory: infra/terraform/environments/${{ inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Terraform init (com/sem backend)
+        run: |
+          if [ "${{ inputs.backend }}" = "true" ]; then
+            cat > backend.tf <<'EOF'
+            terraform {
+              backend "s3" {}
+            }
+            EOF
+            terraform init -input=false -backend-config=backend.hcl
+          else
+            terraform init -input=false -backend=false
+          fi
+
+      - name: Terraform plan (preview)
+        run: terraform plan -input=false -lock=false -out=plan.out
+
+      - name: Terraform apply (manual trigger)
+        run: terraform apply -input=false -auto-approve plan.out

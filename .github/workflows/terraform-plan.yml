@@ -1,0 +1,65 @@
+name: Terraform Plan (PR)
+
+on:
+  pull_request:
+    paths:
+      - 'infra/terraform/**'
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  plan:
+    name: plan (${{ matrix.env }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env: [dev, hom, prod]
+
+    defaults:
+      run:
+        working-directory: infra/terraform/environments/${{ matrix.env }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # Se quiser usar OIDC e consultar AWS durante o plan (data sources), habilite:
+      - name: Configure AWS credentials (OIDC)
+        if: ${{ secrets.AWS_OIDC_ROLE_ARN != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init (sem backend por padrão)
+        run: terraform init -backend=false
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan (não aplica)
+        run: terraform plan -no-color -input=false -lock=false -refresh=false || true
+
+      - name: Comment plan on PR
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            let out = '';
+            try {
+              out = execSync('terraform plan -no-color -input=false -lock=false -refresh=false', { cwd: process.env.GITHUB_WORKSPACE + '/infra/terraform/environments/${{ matrix.env }}' }).toString();
+            } catch (e) {
+              out = e.stdout?.toString() || e.message;
+            }
+            const body = '### Terraform Plan (`${{ matrix.env }}`)\n```\n' + out.slice(0, 60000) + '\n```';
+            github.rest.issues.createComment({ issue_number: context.issue.number, owner: context.repo.owner, repo: context.repo.repo, body });
