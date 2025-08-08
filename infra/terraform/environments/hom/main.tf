@@ -1,1 +1,1 @@
-# Coloque seus módulos para HOM
+# Adicione seus módulos aqui. Mantido vazio para não criar nada no plan/apply.
