@@ -1,0 +1,97 @@
+name: tf-hom-plan-apply
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    outputs:
+      artifact-name: ${{ steps.mkname.outputs.name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
+      - name: Debug repo tree
+        run: |
+          pwd
+          ls -la
+          command -v tree >/dev/null 2>&1 && tree -a -L 3 || find . -maxdepth 3 -type d -print
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan (HOM)
+        env:
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+        run: terraform plan -var-file=hom.tfvars -out=plan.out -input=false
+
+      - name: Name artifact (plan.out)
+        id: mkname
+        run: |
+          NAME="tf-hom-plan-${GITHUB_REF_NAME//\//-}-${GITHUB_RUN_NUMBER}"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload plan.out
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.mkname.outputs.name }}
+          path: terraform/plan.out
+          if-no-files-found: error
+
+  apply:
+    needs: plan
+    runs-on: ubuntu-latest
+    # 🔒 Pausa para aprovação manual no Environment "hom"
+    environment:
+      name: hom
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.5
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Download plan.out artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.plan.outputs.artifact-name }}
+          path: terraform
+
+      - name: Show plan hash (sanity)
+        run: sha256sum plan.out
+
+      - name: Terraform Apply (HOM - requires approval)
+        env:
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+        run: terraform apply -input=false plan.out

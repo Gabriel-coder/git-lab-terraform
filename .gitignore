@@ -7,3 +7,4 @@ crash.log
 plan.out
 !terraform/*.tfvars
 !terraform/*.tfvars
+!terraform/*.tfvars
