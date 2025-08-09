@@ -5,3 +5,5 @@ crash.log
 *.tfvars
 *.zip
 plan.out
+!terraform/*.tfvars
+!terraform/*.tfvars

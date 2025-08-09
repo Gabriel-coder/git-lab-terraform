@@ -1,35 +1,49 @@
 name: tf-hom-plan
+
 on:
-  pull_request:
-    paths: [ 'terraform/environments/hom/**' ]
+  workflow_dispatch:
   push:
-    branches: [ main ]
-    paths: [ 'terraform/environments/hom/**' ]
-permissions:
-  id-token: write
-  contents: read
-  pull-requests: write
+    branches:
+      - '**'
+
 jobs:
   plan:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: terraform/environments/hom
+        working-directory: terraform
     steps:
-      - uses: actions/checkout@v4
-      - uses: hashicorp/setup-terraform@v3
-      - name: Configure AWS (OIDC)
-        env: { ROLE_ARN: ${{ secrets.AWS_OIDC_ROLE_ARN_HOM }} }
-        if: ${{ env.ROLE_ARN != '' }}
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
-          role-to-assume: ${{ env.ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
-      - run: terraform fmt -check -recursive
-      - run: terraform init -backend-config=backend.hcl
-      - run: terraform validate
-      - name: Terraform Plan
+          terraform_version: 1.9.5
+
+      - name: Debug repo tree
         run: |
-          ARGS=""
-          [ -f hom.tfvars ] && ARGS="-var-file=hom.tfvars"
-          terraform plan $ARGS -no-color -input=false -lock=false
+          pwd
+          ls -la
+          command -v tree >/dev/null 2>&1 && tree -a -L 3 || find . -maxdepth 3 -type d -print
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        env:
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+        run: terraform plan -var-file=dev.tfvars -out=plan.out -input=false
+
+      - name: Upload plan.out
+        uses: actions/upload-artifact@v4
+        with:
+          name: tf-plan
+          path: terraform/plan.out
