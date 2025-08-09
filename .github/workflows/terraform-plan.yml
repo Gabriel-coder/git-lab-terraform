@@ -1,65 +1,49 @@
-name: Terraform Plan (PR)
+name: Terraform Plan
 
 on:
-  pull_request:
-    paths:
-      - 'infra/terraform/**'
-
-permissions:
-  id-token: write
-  contents: read
-  pull-requests: write
+  workflow_dispatch:
+  push:
+    branches: [ main ]
 
 jobs:
   plan:
-    name: plan (${{ matrix.env }})
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        env: [dev, hom, prod]
-
     defaults:
       run:
-        working-directory: infra/terraform/environments/${{ matrix.env }}
-
+        working-directory: terraform
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
-
-      # Se quiser usar OIDC e consultar AWS durante o plan (data sources), habilite:
-      - name: Configure AWS credentials (OIDC)
-        if: ${{ secrets.AWS_OIDC_ROLE_ARN != '' }}
-        uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          terraform_version: 1.9.5
 
-      - name: Terraform fmt
-        run: terraform fmt -check -recursive
+      - name: Debug - listar arquivos
+        run: |
+          pwd
+          ls -la
+          echo "Tree do repo:"
+          command -v tree >/dev/null 2>&1 && tree -a -L 3 || find . -maxdepth 3 -type d -print
 
-      - name: Terraform init (sem backend por padrão)
-        run: terraform init -backend=false
+      - name: Init
+        run: terraform init -input=false
 
-      - name: Terraform validate
+      - name: Validate
         run: terraform validate
 
-      - name: Terraform plan (não aplica)
-        run: terraform plan -no-color -input=false -lock=false -refresh=false || true
+      - name: Plan
+        env:
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+        run: terraform plan -var-file=dev.tfvars -out=plan.out -input=false
 
-      - name: Comment plan on PR
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: actions/github-script@v7
+      - name: Upload plan.out
+        uses: actions/upload-artifact@v4
         with:
-          script: |
-            const { execSync } = require('child_process');
-            let out = '';
-            try {
-              out = execSync('terraform plan -no-color -input=false -lock=false -refresh=false', { cwd: process.env.GITHUB_WORKSPACE + '/infra/terraform/environments/${{ matrix.env }}' }).toString();
-            } catch (e) {
-              out = e.stdout?.toString() || e.message;
-            }
-            const body = '### Terraform Plan (`${{ matrix.env }}`)\n```\n' + out.slice(0, 60000) + '\n```';
-            github.rest.issues.createComment({ issue_number: context.issue.number, owner: context.repo.owner, repo: context.repo.repo, body });
+          name: tf-plan
+          path: terraform/plan.out
